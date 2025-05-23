@@ -8,6 +8,8 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.*;
 import javafx.stage.Stage;
 
+import java.sql.SQLException;
+
 public class RegisterScene extends Styling {
 
     private Stage primaryStage;
@@ -53,7 +55,13 @@ public class RegisterScene extends Styling {
 
         // Event handlers for registerButton and loginNow
         registerButton.setOnAction(event ->
-                registerButtonEvent(usernameTxtField.getText(), passwordTxtField.getText()));
+        {
+            try {
+                registerButtonEvent(usernameTxtField.getText(), passwordTxtField.getText());
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
         loginNow.setOnMouseClicked(event -> primaryStage.setScene(loginScene.getScene()));
 
         // Add the elements to the GridPane (All labels are on 1st col, all text-fields on 2nd col)
@@ -83,10 +91,10 @@ public class RegisterScene extends Styling {
     }
 
 
-    private void registerButtonEvent(String username, String password) {
-        if (!dataStorage.checkUsernameAlreadyExisting(username)) {
+    private void registerButtonEvent(String username, String password) throws SQLException {
+            if(!dataStorage.usernameExists(username)) {
             if (password.length() >= 6) {
-                dataStorage.addUser(username, password);
+               dataStorage.registerUser(username, password);
                 // Navigate to the login screen or another appropriate screen after successful registration
                 primaryStage.setScene(loginScene.getScene());
             } else {

@@ -33,9 +33,7 @@ import java.util.HashMap;
  * The main method also sets up the main application window
  * and opens the sample accounts
  *
- * @author Zul Ahmed
- * @version 1.0
- * @since 2023-03-28
+
  */
 public class BankingTransaction extends Application {
 

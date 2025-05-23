@@ -63,7 +63,8 @@ public class BudgetView extends Tab {
         pieChartData.clear();
 
         // Reload your data from DataStorage
-        totalBudget = dataStorage.getLoggedUser().getTotalLimit();
+        if (dataStorage.getLoggedUser() != null){
+        totalBudget = dataStorage.getLoggedUser().getTotalLimit();}
         ObservableList<Budget> list = FXCollections.observableArrayList(dataStorage.getBudgets());
         ObservableList<Transaction> transactionList = FXCollections.observableArrayList(dataStorage.getLoggedUser().getTransactions());
 

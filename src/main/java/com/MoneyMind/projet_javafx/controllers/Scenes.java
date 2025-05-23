@@ -52,7 +52,7 @@ public class Scenes extends Styling {
         VBox loginForm2 = new VBox();
 
         // elements for the Top Region of the mainBorderPane
-        Text title = new Text("BetterBudget");
+        Text title = new Text("Money Mind");
 
         // StackPane automatically centers the objects
         title.setFill(Color.web("#50C878"));

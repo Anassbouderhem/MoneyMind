@@ -1,6 +1,7 @@
 package com.MoneyMind.projet_javafx.controllers;
 
 import com.MoneyMind.projet_javafx.controllers.DataStorage;
+import com.MoneyMind.projet_javafx.db.UserDAO;
 import javafx.geometry.*;
 import javafx.scene.*;
 import javafx.scene.control.*;
@@ -45,7 +46,7 @@ public class LoginScene extends Styling {
         VBox loginForm2 = new VBox();
 
         // elements for the Top Region of the mainBorderPane
-        Text title = new Text("BetterBudget");
+        Text title = new Text("Money Mind");
 
         // StackPane automatically centers the objects
         title.setFill(Color.web("#50C878"));
@@ -159,25 +160,20 @@ public class LoginScene extends Styling {
 
     @Override
     protected Scene loginButtonEvent(String username, String password) {
-        User user = dataStorage.getUser(username, password);
+        User user = UserDAO.getUserByCredentials(username, password);
+
         if (user != null) {
-            // Set the logged user in the DataStorage
-            dataStorage.setLoggedUser(username);
-
-            // Navigate to the main pane, passing the user object
-            MainWindow mainWindow = new MainWindow(dataStorage); // <-- Create a new MainWindow object with dataStorage as a parameter
-
+           dataStorage.setLoggedUser(user); // Tu peux stocker l’objet User complet
+            MainWindow mainWindow = new MainWindow(dataStorage);
             errorText.setText(" ");
-            Scene mainWindowScene = mainWindow.createScene(); // <-- Create a new method createScene() in MainWindow
+            Scene mainWindowScene = mainWindow.createScene();
             primaryStage.setScene(mainWindowScene);
             return mainWindowScene;
         } else {
             errorText.setText("Wrong username or password");
+            return null;
         }
-        return null;
     }
-
-
 
 
 
