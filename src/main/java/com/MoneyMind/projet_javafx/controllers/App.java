@@ -2,7 +2,7 @@ package com.MoneyMind.projet_javafx.controllers;
 
 import com.MoneyMind.projet_javafx.controllers.DataStorage;
 import javafx.application.Application;
-
+import com.MoneyMind.projet_javafx.db.DBInitializer;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Separator;
@@ -38,7 +38,7 @@ public class App extends Application{
         Scene scene2 = new Scene(root, 600, 400);
         primaryStage.getIcons().add(icon);
         primaryStage.setScene(scene2);
-        primaryStage.setTitle("Better Budget");
+        primaryStage.setTitle("Money Mind");
 
         // Create the intro screen with the logo
         ImageView logo = new ImageView(new Image(LOGO_PATH));
@@ -46,7 +46,7 @@ public class App extends Application{
         logo.setFitWidth(200);
 
         // Create the welcome text
-        Text welcomeText = new Text("Welcome to Better Budget!");
+        Text welcomeText = new Text("Welcome to Money Mind!");
         // Set font style to Bubbleboddy.ttf
         welcomeText.setFont(Font.loadFont(getClass().getResourceAsStream("/fonts/Bubbleboddy.ttf"), 24));
         welcomeText.setFill(Color.web("#00BB62"));
@@ -76,9 +76,11 @@ public class App extends Application{
         logoTransition.play();
 
         primaryStage.getIcons().add(icon);
-        primaryStage.setTitle("BetterBudget Spending Tracker");
+        primaryStage.setTitle("Chaque dirham compte");
         primaryStage.show();
     }
 
-    public static void main(String[] args) { launch(args); }
+    public static void main(String[] args) {
+        DBInitializer.initializeDatabase();
+        launch(args); }
 }

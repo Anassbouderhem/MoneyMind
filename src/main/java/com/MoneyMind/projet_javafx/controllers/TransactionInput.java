@@ -1,5 +1,6 @@
 package com.MoneyMind.projet_javafx.controllers;
 
+import com.MoneyMind.projet_javafx.assistant_AI.AIAssistant;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.*;
@@ -16,7 +17,10 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.util.StringConverter;
 
+import java.io.InputStream;
+import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.List;
 
 /** Class used to create SpendingApp GUI and add functionality
  *
@@ -64,39 +68,57 @@ public class TransactionInput extends Tab {
     // lists
     ObservableList<Transaction> tableData; // hold purchases
 
-    ObservableList<String> categoryList = FXCollections.observableArrayList( // list of categories
-            "Clothing", "Debt payments", "Education", "Entertainment", "Food", "Gifts",
-            "Health", "Housing", "Insurance", "Personal",
-            "Savings", "Taxes", "Transportation", "Misc."
-    );
+    private final ObservableList<String> nameList = FXCollections.observableArrayList();
+
 
     // tableview
     TableView<Transaction> table;
 
     private DataStorage dataStorage;
-    public TransactionInput(TransactionList list) {
-        tableData = list.getList();
-        table = new TableView<>(tableData);
-        start();
-    }
-
     public TransactionInput(DataStorage dataStorage) {
         this.dataStorage = dataStorage;
-
-        tableData = FXCollections.observableArrayList(dataStorage.getLoggedUser().getTransactions());
-        table = new TableView<>(tableData);
+        this.tableData = FXCollections.observableArrayList();
+        this.table = new TableView<>(tableData);
+        loadInitialData();
         start();
     }
 
-    public TransactionInput() {
-        this((TransactionList) FXCollections.observableArrayList());
+    private void loadInitialData() {
+            if (dataStorage.getLoggedUser() != null) {
+                System.out.println("Iam");
+                List<Transaction> dbTransactions = dataStorage.getTransactions();
+                System.out.println(dbTransactions);
+                tableData.setAll(dbTransactions);
+                updateTotal();
+            }
     }
 
+    private void updateTotal() {
+        double totalCost = 0;
+        for (Transaction t : tableData) {
+            totalCost += t.getAmount();
+        }
+        String str = String.format("$ %.2f", totalCost);
+        totalField.setText(str);
+    }
+
+    private void loadCategoriesFromDatabase() {
+        try {
+            List<String> categories = dataStorage.getAllCategories();
+            nameList.setAll(categories);
+        } catch (SQLException e) {
+            System.err.println("Erreur lors du chargement des catégories: " + e.getMessage());
+            // Fallback sur des catégories par défaut si nécessaire
+            nameList.setAll("Nourriture", "Logement", "Transport", "Loisirs", "Épargne");
+        }
+    }
+
+
+
     public void start() {
+        loadCategoriesFromDatabase();
+        categoryComboBox = new ComboBox<>(nameList);
 
-        categoryComboBox = new ComboBox<>(categoryList); // fill category dropdown with categories
-
-        // methods
         gridStyling();
         allStyling();
         setButtonHandlers();
@@ -106,51 +128,35 @@ public class TransactionInput extends Tab {
         addAmountRegex();
         bindTotalField();
 
-//        // create and add tabs to tabPane
-//        shopTab.setText("Purchases");
-//        shopTab.setContent(outerGrid);
-//        chartTab = createChartTab();
-//        chartTab.setText("Spending Breakdown");
-//        tabPane.getTabs().addAll(shopTab, chartTab);
-//        tabPane.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE); // prevent user from closing tabs
-
         setText("Transactions");
         setContent(outerGrid);
-
+        setupAIComponents();
     }
-
 
     /** Input validation for amount field to prevent invalid input
      *
      */
     private void addAmountRegex() {
         amountField.textProperty().addListener((observable, oldValue, newValue) -> {
-            // Validate the new value to ensure that it only contains numeric characters, decimals and negative sign
-            if (!newValue.matches("\\d*\\.?\\d*")) {
-                // If the new value is non-numeric, replace it with the old value
+            if (newValue == null || !newValue.matches("-?\\d*(\\.\\d*)?")) {
                 amountField.setText(oldValue);
             }
         });
     }
 
+
     /** Helper function binds purchaseList to the totalField to display the total cost of all items
      *
      */
     private void bindTotalField() {
-        // Add a listener to the purchaseList
-        table.getItems().addListener((ListChangeListener<Transaction>) change -> {
-            // Recalculate the total cost
+        tableData.addListener((ListChangeListener<Transaction>) change -> {
             double totalCost = 0;
             for (Transaction t : table.getItems()) {
                 totalCost += t.getAmount();
             }
-            // Update the total field with the new total cost
             String str = String.format("$ %.2f", totalCost);
             totalField.setText(str);
         });
-
-        // Bind the total field to the total cost
-        totalField.textProperty().bindBidirectional(new SimpleStringProperty("0"));
     }
 
     /** Helper function creates TableColumn objects and adds them to TableView object
@@ -183,7 +189,7 @@ public class TransactionInput extends Tab {
             }
         }));
 
-    TableColumn<Transaction, String> catCol = new TableColumn<>("Category");
+        TableColumn<Transaction, String> catCol = new TableColumn<>("Category");
         catCol.setCellValueFactory(new PropertyValueFactory<>("category"));
         catCol.setStyle( "-fx-alignment: CENTER;");
         catCol.prefWidthProperty().bind(table.widthProperty().multiply(0.26));
@@ -455,18 +461,23 @@ public class TransactionInput extends Tab {
     }
 
     /**
-     * Creates new Transaction object based on user input values and adds Transaction to list
+     * Creates new Transaction object based on user input values and adds Transaction to list   String name, double amount, String category, LocalDate date
      */
     private void addTransactionHandler() {
-        LocalDate date = dateField.getValue();
-        double cost = Double.parseDouble(amountField.getText());
-        String category = (String)categoryComboBox.getValue();
-        String name = nameField.getText();
-        Transaction newT = new Transaction(name, cost, category, date);
-        amountField.setText(null);
-        table.getItems().add(newT);
-        dataStorage.createTransaction(dataStorage.getLoggedUser(), name, cost, category, date);
-        // refreshChartTab();
+        try {
+            LocalDate date = dateField.getValue();
+            double cost = Double.parseDouble(amountField.getText());
+            String category = categoryComboBox.getValue();
+            String name = nameField.getText();
+            Transaction newT = new Transaction(name, cost, category, date);
+            dataStorage.addTransaction(dataStorage.getLoggedUser(), name, cost, category, date);
+            table.getItems().add(newT);
+            amountField.setText(null);
+        } catch (SQLException e) {
+            new Alert(Alert.AlertType.ERROR, "Failed to save transaction: " + e.getMessage()).show();
+        } catch (NumberFormatException e) {
+            new Alert(Alert.AlertType.ERROR, "Invalid amount format").show();
+        }
     }
 
     /**
@@ -475,23 +486,45 @@ public class TransactionInput extends Tab {
     private void removeHandler(Transaction toRemove) {
         table.getItems().remove(toRemove);
         dataStorage.removeTransaction(dataStorage.getLoggedUser(), toRemove.getName());
-        // refreshChartTab();
     }
 
+    private void setupAIComponents() {
+        Button aiButton = new Button("Obtenir des conseils");
+        TextArea adviceArea = new TextArea();
+        adviceArea.setEditable(false);
+        adviceArea.setWrapText(true);
+        adviceArea.setPrefHeight(150);
+        adviceArea.setFont(Font.font("Arial", 13));
+
+        //aiButton.setFont();
+        aiButton.setPrefWidth(180);
+
+        VBox aiBox = new VBox(10, aiButton, adviceArea);
+        aiBox.setAlignment(Pos.CENTER);
+        aiBox.setPadding(new Insets(10));
+
+        aiButton.setOnAction(e -> {
+            try {
+                AIAssistant assistant = new AIAssistant(dataStorage);
+                String advice = assistant.generateMonthlyAdvice(dataStorage.getLoggedUser().getId());
+                adviceArea.setText(advice);
+            } catch (SQLException ex) {
+                adviceArea.setText("Erreur lors de la génération des conseils: " + ex.getMessage());
+            }
+        });
+        outerGrid.add(aiBox, 0, 2);
+    }
     /**
      * Quits out of the application
      */
     private void quitHandler() {
+        dataStorage.close();
         Platform.exit();
     }
 
-//    /**
+    //    /**
 //     * Creates new Chart tab and replaces the previous one
 //     */
-//    private void refreshChartTab() {
-//        chartTab = createChartTab();
-//        tabPane.getTabs().set(1, chartTab);
-//    }
 
     public static void main(String[] args) {  }
 }

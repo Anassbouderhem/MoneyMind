@@ -4,6 +4,8 @@ public class Budget {
     private String name;
     private double amount;
     private double current;
+    private String category;
+
 
     public Budget(String name, double amount, double current) {
         this.name = name;
@@ -42,5 +44,9 @@ public class Budget {
                 "name='" + name + '\'' +
                 ", amount=" + amount +
                 '}';
+    }
+
+    public String getCategory() {
+        return category;
     }
 }

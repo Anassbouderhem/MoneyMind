@@ -51,7 +51,7 @@ abstract class Styling extends Panes {
         StackPane headerStackPane = new StackPane();
         headerStackPane.setAlignment(Pos.CENTER);
 
-        Text title = new Text("BetterBudget\nRegistration");
+        Text title = new Text("MoneyMind\nRegistration");
         title.setFill(Color.web("#50C878"));
         title.setFont(titleFont);
         title.setTextOrigin(VPos.TOP);
