@@ -10,26 +10,31 @@ import javafx.stage.Stage;
 
 import java.time.LocalDate;
 
+
+
 public class MainWindow {
 
     TabPane tp = new TabPane();
+    private BudgetInputTab budgetInputTab;
+    private DataStorage dataStorage;
+    private Stage primaryStage;
+    private Scene loginScene;
 
-    private DataStorage dataStorage; // <-- Add dataStorage field
-
-    // Add a constructor that takes DataStorage as a parameter
-    public MainWindow(DataStorage dataStorage) {
+    // Update constructor
+    public MainWindow(DataStorage dataStorage, Stage primaryStage, Scene loginScene) {
         this.dataStorage = dataStorage;
+        this.primaryStage = primaryStage;
+        this.loginScene = loginScene;
     }
 
-    // Add a createScene() method that returns the Scene object
     public Scene createScene() {
         final int WIDTH = 750;
         final int HEIGHT = 450;
 
-        // Input and view tabs
-        BudgetInputTab budgetInputTab = new BudgetInputTab(dataStorage);
+        // Pass primaryStage and loginScene to BudgetInputTab
+        BudgetInputTab budgetInputTab = new BudgetInputTab(dataStorage, primaryStage, loginScene);
         BudgetView budgetViewTab = new BudgetView(dataStorage);
-        TransactionInput transactionInputTab = new TransactionInput(dataStorage);
+        TransactionInput transactionInputTab = new TransactionInput(dataStorage, budgetInputTab);
         TransactionView transactionViewTab = new TransactionView(dataStorage);
 
         tp.getTabs().addAll(budgetInputTab, budgetViewTab, transactionInputTab, transactionViewTab);

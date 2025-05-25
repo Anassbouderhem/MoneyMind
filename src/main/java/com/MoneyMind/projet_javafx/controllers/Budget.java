@@ -6,7 +6,6 @@ public class Budget {
     private double current;
     private String category;
 
-
     public Budget(String name, double amount, double current) {
         this.name = name;
         this.amount = amount;
@@ -15,9 +14,11 @@ public class Budget {
     public Budget(String name, double amount) {
         this.name = name;
         this.amount = amount;
-        this.current = 0;
+        this.current = amount; // Initialize current to amount
     }
-
+    public void setCurrent(double current) {
+        this.current = current;
+    }
     public String getName() {
         return name;
     }
@@ -43,6 +44,7 @@ public class Budget {
         return "Budget{" +
                 "name='" + name + '\'' +
                 ", amount=" + amount +
+                ", current=" + current +
                 '}';
     }
 

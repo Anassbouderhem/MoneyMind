@@ -17,20 +17,15 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.util.StringConverter;
 
-import java.io.InputStream;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Class used to create SpendingApp GUI and add functionality
- *
- */
 public class TransactionInput extends Tab {
 
     String fontDirectory = "/fonts/HankenGrotesk.ttf";
 
     // visual components
-    // TransactionView chartTab;
     GridPane outerGrid = new GridPane();
     GridPane inputPanel = new GridPane();
     VBox nameBox = new VBox();
@@ -65,17 +60,25 @@ public class TransactionInput extends Tab {
     TextField totalField = new TextField();
     Button quitButton = new Button("Quit");
 
+    // radio buttons for transaction type
+    private final ToggleGroup typeGroup = new ToggleGroup();
+    private final RadioButton incomeRadio = new RadioButton("Income");
+    private final RadioButton expenseRadio = new RadioButton("Expense");
+
+    // filter controls
+    private ComboBox<String> filterCategoryCombo = new ComboBox<>();
+    private DatePicker filterMonthPicker = new DatePicker();
+
     // lists
     ObservableList<Transaction> tableData; // hold purchases
 
-    private final ObservableList<String> nameList = FXCollections.observableArrayList();
-
-
     // tableview
     TableView<Transaction> table;
-
+    private BudgetInputTab budgetInputTab;
     private DataStorage dataStorage;
-    public TransactionInput(DataStorage dataStorage) {
+
+    public TransactionInput(DataStorage dataStorage, BudgetInputTab budgetInputTab) {
+        this.budgetInputTab = budgetInputTab;
         this.dataStorage = dataStorage;
         this.tableData = FXCollections.observableArrayList();
         this.table = new TableView<>(tableData);
@@ -84,46 +87,70 @@ public class TransactionInput extends Tab {
     }
 
     private void loadInitialData() {
-            if (dataStorage.getLoggedUser() != null) {
-                System.out.println("Iam");
-                List<Transaction> dbTransactions = dataStorage.getTransactions();
-                System.out.println(dbTransactions);
-                tableData.setAll(dbTransactions);
-                updateTotal();
-            }
+        if (dataStorage.getLoggedUser() != null) {
+            List<Transaction> dbTransactions = dataStorage.getTransactions();
+            tableData.setAll(dbTransactions);
+            updateTotal();
+        }
     }
 
     private void updateTotal() {
         double totalCost = 0;
-        for (Transaction t : tableData) {
+        for (Transaction t : table.getItems()) {
             totalCost += t.getAmount();
         }
         String str = String.format("$ %.2f", totalCost);
         totalField.setText(str);
     }
 
-    private void loadCategoriesFromDatabase() {
-        try {
-            List<String> categories = dataStorage.getAllCategories();
-            nameList.setAll(categories);
-        } catch (SQLException e) {
-            System.err.println("Erreur lors du chargement des catégories: " + e.getMessage());
-            // Fallback sur des catégories par défaut si nécessaire
-            nameList.setAll("Nourriture", "Logement", "Transport", "Loisirs", "Épargne");
+    private ObservableList<String> getBudgetedCategories() {
+        ObservableList<String> budgetedCategories = FXCollections.observableArrayList();
+        if (dataStorage.getLoggedUser() != null) {
+            System.out.println("[DEBUG] Logged user: " + dataStorage.getLoggedUser().getUsername());
+            List<Budget> budgets = dataStorage.getLoggedUser().getBudgets();
+            System.out.println("[DEBUG] User budgets count: " + (budgets != null ? budgets.size() : 0));
+            if (budgets != null) {
+                for (Budget b : budgets) {
+                    System.out.println("[DEBUG] Budget found: " + b.getName() + " (current: " + b.getCurrent() + ")");
+                    budgetedCategories.add(b.getName());
+                }
+            }
+        } else {
+            System.out.println("[DEBUG] No logged user found.");
         }
+        System.out.println("[DEBUG] Budgeted categories for ComboBox: " + budgetedCategories);
+        return budgetedCategories;
     }
 
-
-
     public void start() {
-        loadCategoriesFromDatabase();
-        categoryComboBox = new ComboBox<>(nameList);
+        // Only allow transactions for categories with a defined budget
+        ObservableList<String> budgetedCategories = getBudgetedCategories();
+        System.out.println("[DEBUG] Setting ComboBox items: " + budgetedCategories);
+        categoryComboBox.getItems().setAll(budgetedCategories);
+
+        // Setup radio buttons for transaction type
+        incomeRadio.setToggleGroup(typeGroup);
+        expenseRadio.setToggleGroup(typeGroup);
+        expenseRadio.setSelected(true); // Default to expense
+
+        HBox typeBox = new HBox(10, incomeRadio, expenseRadio);
+        typeBox.setAlignment(Pos.CENTER);
+
+        // Setup filter controls
+        filterCategoryCombo.getItems().clear();
+        filterCategoryCombo.getItems().add("All");
+        filterCategoryCombo.getItems().addAll(budgetedCategories);
+        filterCategoryCombo.setValue("All");
+        filterMonthPicker.setPromptText("Filter by Month");
+
+        HBox filterBox = new HBox(10, new Label("Category:"), filterCategoryCombo, new Label("Month:"), filterMonthPicker);
+        filterBox.setAlignment(Pos.CENTER_LEFT);
 
         gridStyling();
         allStyling();
         setButtonHandlers();
         createToolTips();
-        populateGrids();
+        populateGrids(typeBox, filterBox);
         tableSetup();
         addAmountRegex();
         bindTotalField();
@@ -131,11 +158,12 @@ public class TransactionInput extends Tab {
         setText("Transactions");
         setContent(outerGrid);
         setupAIComponents();
+
+        // Add filter listeners
+        filterCategoryCombo.setOnAction(e -> applyFilters());
+        filterMonthPicker.setOnAction(e -> applyFilters());
     }
 
-    /** Input validation for amount field to prevent invalid input
-     *
-     */
     private void addAmountRegex() {
         amountField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue == null || !newValue.matches("-?\\d*(\\.\\d*)?")) {
@@ -144,35 +172,22 @@ public class TransactionInput extends Tab {
         });
     }
 
-
-    /** Helper function binds purchaseList to the totalField to display the total cost of all items
-     *
-     */
     private void bindTotalField() {
         tableData.addListener((ListChangeListener<Transaction>) change -> {
-            double totalCost = 0;
-            for (Transaction t : table.getItems()) {
-                totalCost += t.getAmount();
-            }
-            String str = String.format("$ %.2f", totalCost);
-            totalField.setText(str);
+            updateTotal();
         });
     }
 
-    /** Helper function creates TableColumn objects and adds them to TableView object
-     *
-     */
     private void tableSetup() {
-        // create table columns
         TableColumn<Transaction, String> itemCol = new TableColumn<>("Name");
         itemCol.setCellValueFactory(new PropertyValueFactory<>("name"));
-        itemCol.setStyle( "-fx-alignment: CENTER;");
+        itemCol.setStyle("-fx-alignment: CENTER;");
         itemCol.prefWidthProperty().bind(table.widthProperty().multiply(0.28));
         itemCol.setResizable(false);
 
         TableColumn<Transaction, Double> amountCol = new TableColumn<>("Amount");
         amountCol.setCellValueFactory(new PropertyValueFactory<>("amount"));
-        amountCol.setStyle( "-fx-alignment: CENTER;");
+        amountCol.setStyle("-fx-alignment: CENTER;");
         amountCol.prefWidthProperty().bind(table.widthProperty().multiply(0.14));
         amountCol.setResizable(false);
 
@@ -181,34 +196,31 @@ public class TransactionInput extends Tab {
             public String toString(Double value) {
                 return "$" + value;
             }
-
             @Override
             public Double fromString(String value) {
-                // Implement if needed
                 return null;
             }
         }));
 
         TableColumn<Transaction, String> catCol = new TableColumn<>("Category");
         catCol.setCellValueFactory(new PropertyValueFactory<>("category"));
-        catCol.setStyle( "-fx-alignment: CENTER;");
+        catCol.setStyle("-fx-alignment: CENTER;");
         catCol.prefWidthProperty().bind(table.widthProperty().multiply(0.26));
         catCol.setResizable(false);
 
         TableColumn<Transaction, LocalDate> dateCol = new TableColumn<>("Date Ordered");
         dateCol.setCellValueFactory(new PropertyValueFactory<>("date"));
-        dateCol.setStyle( "-fx-alignment: CENTER;");
+        dateCol.setStyle("-fx-alignment: CENTER;");
         dateCol.prefWidthProperty().bind(table.widthProperty().multiply(0.21));
         dateCol.setResizable(false);
 
         TableColumn delCol = new TableColumn();
         delCol.prefWidthProperty().bind(table.widthProperty().multiply(0.09));
         delCol.setResizable(false);
-        delCol.setStyle( "-fx-alignment: CENTER;");
+        delCol.setStyle("-fx-alignment: CENTER;");
         Image delete = new Image("delete.png");
 
-        delCol.setCellFactory(ButtonTableCell.<Transaction>forTableColumn(delete, (Transaction Transaction) ->
-        {
+        delCol.setCellFactory(ButtonTableCell.<Transaction>forTableColumn(delete, (Transaction Transaction) -> {
             removeHandler(Transaction);
             return Transaction;
         }));
@@ -218,11 +230,7 @@ public class TransactionInput extends Tab {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
     }
 
-    /** Helper function sets handlers for buttons
-     *
-     */
     private void setButtonHandlers() {
-        // set button handlers
         purchaseButton.setOnAction(e -> addTransactionHandler());
         quitButton.setOnAction(e -> quitHandler());
         purchaseButton.disableProperty().bind(
@@ -236,11 +244,7 @@ public class TransactionInput extends Tab {
         );
     }
 
-    /** Helper function adds widgets to boxes and adds those boxes to the GridPanes in the scene
-     *
-     */
-    private void populateGrids() {
-        // add to grid
+    private void populateGrids(HBox typeBox, HBox filterBox) {
         addTitleBox.getChildren().add(addItemLabel);
         outerGrid.add(addTitleBox, 0, 0);
         outerGrid.add(inputPanel, 0, 1);
@@ -256,17 +260,24 @@ public class TransactionInput extends Tab {
         inputPanel.add(dateBox, 1, 1);
         dateBox.getChildren().addAll(dateLabel, dateField);
 
-        inputPanel.add(purchaseBox, 0, 2, 2, 1);
+        // Add radio buttons for transaction type
+        inputPanel.add(typeBox, 0, 2, 2, 1);
+
+        inputPanel.add(purchaseBox, 0, 3, 2, 1);
         purchaseBox.getChildren().add(purchaseButton);
 
         pTitleBox.getChildren().add(purchasedLabel);
         outerGrid.add(pTitleBox, 1, 0);
-        tableBox.getChildren().add(table);
+
+        // Add filterBox above the table
+        VBox tableSection = new VBox(8, filterBox, table);
+        tableBox.getChildren().clear();
+        tableBox.getChildren().add(tableSection);
+
         outerGrid.add(tableBox, 1, 1);
         outerGrid.add(bottomGrid, 1, 2);
         bottomGrid.add(removeBox, 0, 0);
         totalBox.getChildren().addAll(totalLabel, totalField);
-
 
         quitBox.getChildren().add(quitButton);
 
@@ -275,16 +286,11 @@ public class TransactionInput extends Tab {
         bottomGrid.add(totalQuitBox, 1, 0);
     }
 
-    /** Helper function sets box, label, and widget styling
-     *
-     */
     private void allStyling() {
-        // box alignment
         nameBox.setAlignment(Pos.CENTER);
         amountBox.setAlignment(Pos.TOP_CENTER);
         categoryBox.setAlignment(Pos.TOP_CENTER);
         dateBox.setAlignment(Pos.TOP_CENTER);
-        // dateField.setAlignment(Pos.TOP_CENTER);
         purchaseBox.setAlignment(Pos.BOTTOM_CENTER);
         totalBox.setAlignment(Pos.CENTER_RIGHT);
         removeBox.setAlignment(Pos.TOP_LEFT);
@@ -292,7 +298,6 @@ public class TransactionInput extends Tab {
         totalQuitBox.setAlignment(Pos.TOP_RIGHT);
         totalBox.setMargin(totalLabel, new Insets(0,5,0,0));
 
-        // label styling (sizes, font)
         Font titlefont = Font.loadFont(getClass().getResourceAsStream(fontDirectory), 18);
         Font font = Font.loadFont(getClass().getResourceAsStream(fontDirectory), 14);
         addItemLabel.setFont(titlefont);
@@ -310,7 +315,6 @@ public class TransactionInput extends Tab {
         totalLabel.setFont(font);
         totalLabel.setAlignment(Pos.CENTER_RIGHT);
 
-        // widget styling
         nameField.setMaxWidth(125);
         nameField.setPrefWidth(125);
         amountField.setMaxWidth(100);
@@ -330,13 +334,9 @@ public class TransactionInput extends Tab {
         totalField.setFont(font);
         totalQuitBox.setMargin(totalBox, new Insets(3,0,10,0));
 
-        // box/grid styling
         outerGrid.setAlignment(Pos.CENTER);
-        //outerGrid.setStyle("-fx-background-color: linear-gradient(to right, #45F18A, #B3BCCB);");
         outerGrid.setPadding(new Insets(15, 10, 10, 10));
         outerGrid.setHgap(10);
-        // addTitleBox.setStyle("-fx-background-color: transparent;");
-        // pTitleBox.setStyle("-fx-background-color: transparent;");
         inputPanel.setStyle("-fx-border-style: solid inside;"
                 + "-fx-border-width: 1;"
                 + "-fx-border-color: black;"
@@ -347,14 +347,9 @@ public class TransactionInput extends Tab {
                 + "-fx-border-color: black;"
                 + "-fx-background-color: LIGHTGREY;");
         bottomGrid.setStyle("-fx-background-color: transparent;");
-
     }
 
-    /** Helper function creates ColumnConstraints and RowConstraints for GridPanes and sets their height/width
-     *
-     */
     private void gridStyling() {
-        // gridpane styling
         ColumnConstraints column1 = new ColumnConstraints();
         column1.setPercentWidth(40);
 
@@ -433,26 +428,16 @@ public class TransactionInput extends Tab {
         bottomGrid.getRowConstraints().addAll(bottomRow1, bottomRow2);
     }
 
-    /** Helper function sets tooltips for widgets
-     *
-     */
     private void createToolTips(){
-        // tooltips
         nameField.setTooltip(new Tooltip("Enter transaction name"));
         amountField.setTooltip(new Tooltip("Enter transaction amount"));
         categoryComboBox.setTooltip(new Tooltip("Select a category relevant to the transaction"));
         dateField.setTooltip(new Tooltip("Enter transaction date"));
         purchaseButton.setTooltip(new Tooltip("Add transaction to the table"));
         table.setTooltip(new Tooltip("Transaction will appear here"));
-        // removeButton.setTooltip(new Tooltip("Click on a row and press this button to remove it from the table"));
         totalField.setTooltip(new Tooltip("The total amount of all transactions"));
         quitButton.setTooltip(new Tooltip("Close the application"));
     }
-
-    /**
-     * Method gets the sums for each item category, and calls TransactionView class to create a tab for a chart object
-     * @return TransactionView: tab containing the chart
-     */
 
     private TransactionView createChartTab() {
         TransactionView TransactionView = new TransactionView(dataStorage);
@@ -460,32 +445,98 @@ public class TransactionInput extends Tab {
         return TransactionView;
     }
 
-    /**
-     * Creates new Transaction object based on user input values and adds Transaction to list   String name, double amount, String category, LocalDate date
-     */
     private void addTransactionHandler() {
         try {
             LocalDate date = dateField.getValue();
-            double cost = Double.parseDouble(amountField.getText());
+            double enteredAmount = Double.parseDouble(amountField.getText());
             String category = categoryComboBox.getValue();
             String name = nameField.getText();
-            Transaction newT = new Transaction(name, cost, category, date);
-            dataStorage.addTransaction(dataStorage.getLoggedUser(), name, cost, category, date);
-            table.getItems().add(newT);
+
+            System.out.println("[DEBUG] Attempting to add transaction: name=" + name + ", amount=" + enteredAmount + ", category=" + category + ", date=" + date);
+
+            // Prevent transaction if category is not budgeted
+            if (category == null || category.isEmpty()) {
+                System.out.println("[DEBUG] No category selected or category is empty.");
+                showAlert("Please define a budget for at least one category before adding transactions.");
+                return;
+            }
+
+            boolean isExpense = expenseRadio.isSelected();
+            double amount = isExpense ? -Math.abs(enteredAmount) : Math.abs(enteredAmount);
+
+            // Check if expense exceeds category budget
+            if (isExpense) {
+                Budget selectedBudget = null;
+                for (Budget b : dataStorage.getLoggedUser().getBudgets()) {
+                    if (b.getName().equals(category)) {
+                        selectedBudget = b;
+                        break;
+                    }
+                }
+                if (selectedBudget != null) {
+                    System.out.println("[DEBUG] Selected budget for category: " + selectedBudget.getName() + ", current=" + selectedBudget.getCurrent());
+                    if (Math.abs(amount) > selectedBudget.getCurrent()) {
+                        System.out.println("[DEBUG] Expense exceeds current budget!");
+                        showAlert("Expense exceeds the current budget for this category!");
+                        return;
+                    }
+                } else {
+                    System.out.println("[DEBUG] No budget found for selected category!");
+                }
+            }
+
+            // Add transaction to database and update in-memory
+            dataStorage.addTransaction(dataStorage.getLoggedUser(), name, amount, category, date);
+
+            // Update in-memory Budget object and UI
+            for (Budget b : dataStorage.getLoggedUser().getBudgets()) {
+                if (b.getName().equals(category)) {
+                    if (isExpense) {
+                        b.setCurrent(b.getCurrent() - Math.abs(amount));
+                    } else {
+                        b.setCurrent(b.getCurrent() + Math.abs(amount));
+                    }
+                    System.out.println("[DEBUG] Updated budget '" + b.getName() + "' new current: " + b.getCurrent());
+                    break;
+                }
+            }
+            if (budgetInputTab != null) {
+                budgetInputTab.refreshBudgets();
+            }
+
+            Transaction newT = new Transaction(name, amount, category, date);
+            tableData.add(newT);
+            applyFilters();
+            updateTotal();
+
             amountField.setText(null);
+
         } catch (SQLException e) {
+            System.out.println("[DEBUG] SQLException: " + e.getMessage());
             new Alert(Alert.AlertType.ERROR, "Failed to save transaction: " + e.getMessage()).show();
         } catch (NumberFormatException e) {
+            System.out.println("[DEBUG] NumberFormatException: " + e.getMessage());
             new Alert(Alert.AlertType.ERROR, "Invalid amount format").show();
         }
     }
 
-    /**
-     * Removes selected row from the TableView object
-     */
     private void removeHandler(Transaction toRemove) {
-        table.getItems().remove(toRemove);
+        tableData.remove(toRemove);
+        applyFilters();
         dataStorage.removeTransaction(dataStorage.getLoggedUser(), toRemove.getName());
+    }
+
+    private void applyFilters() {
+        String selectedCategory = filterCategoryCombo.getValue();
+        LocalDate selectedMonth = filterMonthPicker.getValue();
+
+        table.setItems(tableData.filtered(t -> {
+            boolean matchesCategory = selectedCategory == null || selectedCategory.equals("All") || t.getCategory().equals(selectedCategory);
+            boolean matchesMonth = selectedMonth == null ||
+                    (t.getDate() != null && t.getDate().getMonth() == selectedMonth.getMonth() && t.getDate().getYear() == selectedMonth.getYear());
+            return matchesCategory && matchesMonth;
+        }));
+        updateTotal();
     }
 
     private void setupAIComponents() {
@@ -496,7 +547,6 @@ public class TransactionInput extends Tab {
         adviceArea.setPrefHeight(150);
         adviceArea.setFont(Font.font("Arial", 13));
 
-        //aiButton.setFont();
         aiButton.setPrefWidth(180);
 
         VBox aiBox = new VBox(10, aiButton, adviceArea);
@@ -514,17 +564,30 @@ public class TransactionInput extends Tab {
         });
         outerGrid.add(aiBox, 0, 2);
     }
-    /**
-     * Quits out of the application
-     */
+
     private void quitHandler() {
         dataStorage.close();
         Platform.exit();
     }
 
-    //    /**
-//     * Creates new Chart tab and replaces the previous one
-//     */
+    private void showAlert(String msg) {
+        Alert alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+        alert.showAndWait();
+    }
+    /**
+     * Call this method after adding a new budget/category to refresh the ComboBox.
+     * You can call it from BudgetInputTab after a new budget is added.
+     */
+    public void refreshCategoryComboBox() {
+        ObservableList<String> budgetedCategories = getBudgetedCategories();
+        System.out.println("[DEBUG] [refreshCategoryComboBox] Setting ComboBox items: " + budgetedCategories);
+        categoryComboBox.getItems().setAll(budgetedCategories);
 
-    public static void main(String[] args) {  }
+        // Also refresh filter ComboBox if needed
+        filterCategoryCombo.getItems().clear();
+        filterCategoryCombo.getItems().add("All");
+        filterCategoryCombo.getItems().addAll(budgetedCategories);
+        filterCategoryCombo.setValue("All");
+    }
+    public static void main(String[] args) { }
 }

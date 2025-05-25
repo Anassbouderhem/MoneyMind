@@ -1,285 +1,304 @@
 package com.MoneyMind.projet_javafx.controllers;
 
-import com.MoneyMind.projet_javafx.assistant_AI.AIAssistant;
+import javafx.stage.Stage;
+import javafx.scene.Scene;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.control.cell.TextFieldTableCell;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
-import javafx.scene.text.Text;
-import javafx.util.StringConverter;
 
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
 
 public class BudgetInputTab extends Tab {
 
-    String fontDirectory = "/fonts/HankenGrotesk.ttf";
-    Font font = Font.loadFont(getClass().getResourceAsStream(fontDirectory), 14);
+    private final String fontDirectory = "/fonts/HankenGrotesk.ttf";
+    private final Font font = Font.loadFont(getClass().getResourceAsStream(fontDirectory), 15);
 
-    private final ScrollPane scrollPane = new ScrollPane();
-    private final VBox vBox = new VBox();
-    private final HBox totalBar = new HBox();
-    private final Label totalLabel = new Label("Total Budget");
+    private final VBox mainVBox = new VBox(20);
+    private final HBox topBar = new HBox(15);
+    private final VBox totalBox = new VBox(5);
+    private final Label totalLabel = new Label("Total Budget (MAD):");
+    private final HBox totalInputBox = new HBox(8);
     private final TextField totalField = new TextField();
     private final Button totalButton = new Button("Set Total");
-    private final VBox totalDisplayBox = new VBox();
-    private final Label totalDisplayLabel = new Label("");
+    private final Label totalDisplayLabel = new Label();
 
-    private final HBox categoryBar = new HBox();
-    private final VBox categoryLabelBox = new VBox();
-    private final Label categoryLabel = new Label("Categories");
-    private final VBox nameBox = new VBox();
-    private final Label nameLabel = new Label("Name");
-    private final VBox amountBox = new VBox();
-    private final Label amountLabel = new Label("Amount");
+    private final Separator separator1 = new Separator();
+
+    private final GridPane addCategoryPane = new GridPane();
+    private final Label addCategoryLabel = new Label("Add Category");
+    private final Label categoryNameLabel = new Label("Category:");
+    private final ComboBox<String> categoryCombo = new ComboBox<>();
+    private final Label amountLabel = new Label("Amount (MAD):");
     private final TextField amountField = new TextField();
-    private final VBox buttonBox = new VBox();
-    private final Label blank = new Label("");
     private final Button addButton = new Button("Add");
 
-    private final VBox tableBox = new VBox();
-    private final HBox tableLabelBox = new HBox();
-    private final Label tableLabel = new Label("Current Categories");
+    private final Separator separator2 = new Separator();
+
+    private final Label tableLabel = new Label("Allocated Categories");
+    private final TableView<Budget> table = new TableView<>();
+    private final ObservableList<Budget> budgetList = FXCollections.observableArrayList();
 
     private final HBox bottomBar = new HBox();
     private final Button quitButton = new Button("Quit");
-
-
-    
+    private final Button logoutButton = new Button("Logout"); // New logout button
 
     private DataStorage dataStorage;
     private double totalBudgetAmount = 0.0;
+    private Stage primaryStage;
+    private Scene loginScene;
 
-    private final ObservableList<String> nameList = FXCollections.observableArrayList();
-    private final ComboBox<String> nameCombo = new ComboBox<>(nameList);
+    // Reference to TransactionInput for refreshing categories
+    private TransactionInput transactionInput;
 
-    private ObservableList<Budget> budgetList = FXCollections.observableArrayList();
-    private final TableView<Budget> table = new TableView<>();
+    public BudgetInputTab(DataStorage dataStorageInstance, Stage primaryStage, Scene loginScene) {
+        this(dataStorageInstance, primaryStage, loginScene, null);
+    }
 
-    public BudgetInputTab(DataStorage dataStorageInstance) {
+    // Overloaded constructor to accept TransactionInput reference
+    public BudgetInputTab(DataStorage dataStorageInstance, Stage primaryStage, Scene loginScene, TransactionInput transactionInput) {
         this.dataStorage = dataStorageInstance;
-        loadCategoriesFromDatabase();
-        initializeBudgetList();
-        initializeTotalBudgetAmount();
-        allStyling();
-        initializeBudgetTotalList();
-        populate();
-        setHandlers();
-        tableSetup();
-        createToolTips();
-        scrollPane.setContent(vBox);
-        setText("Budget Input");
+        this.primaryStage = primaryStage;
+        this.loginScene = loginScene;
+        this.transactionInput = transactionInput;
+        setText("Budget Setup");
+
+        setupFonts();
+        setupLayout();
+        setupTable();
+        setupHandlers();
+        loadCategories();
+        loadBudgets();
+        updateTotalDisplay();
+
+        ScrollPane scrollPane = new ScrollPane(mainVBox);
+        scrollPane.setFitToWidth(true);
         setContent(scrollPane);
     }
 
-    private void loadCategoriesFromDatabase() {
-        try {
-            List<String> categories = dataStorage.getAllCategories();
-            nameList.setAll(categories);
-        } catch (SQLException e) {
-            System.err.println("Erreur lors du chargement des catégories: " + e.getMessage());
-            // Fallback sur des catégories par défaut si nécessaire
-            nameList.setAll("Nourriture", "Logement", "Transport", "Loisirs", "Épargne");
-        }
+    private void setupFonts() {
+        totalLabel.setFont(font);
+        totalField.setFont(font);
+        totalButton.setFont(font);
+        totalDisplayLabel.setFont(font);
+        addCategoryLabel.setFont(Font.font(font.getFamily(), 16));
+        categoryNameLabel.setFont(font);
+        categoryCombo.setStyle("-fx-font-size: 14px;");
+        amountLabel.setFont(font);
+        amountField.setFont(font);
+        addButton.setFont(font);
+        tableLabel.setFont(Font.font(font.getFamily(), 16));
+        quitButton.setFont(font);
+        logoutButton.setFont(font);
     }
 
-    private void initializeTotalBudgetAmount() {
-        if (dataStorage.getLoggedUser() != null){
-        totalBudgetAmount = dataStorage.getLoggedUser().getTotalLimit();
-    }
-    }
+    private void setupLayout() {
+        // Top bar: Total budget
+        totalInputBox.getChildren().addAll(totalField, totalButton);
+        totalInputBox.setAlignment(Pos.CENTER_LEFT);
+        totalBox.getChildren().addAll(totalLabel, totalInputBox, totalDisplayLabel);
+        totalBox.setAlignment(Pos.CENTER_LEFT);
 
-    private void initializeBudgetTotalList() {
-        if (totalBudgetAmount != 0) {
-            totalDisplayLabel.setText("Budget Limit: $" + totalBudgetAmount);
-        }
-    }
+        topBar.getChildren().addAll(totalBox);
+        topBar.setAlignment(Pos.CENTER_LEFT);
 
-    private void initializeBudgetList() {
-        budgetList = FXCollections.observableArrayList(dataStorage.getBudgets());
-    }
+        // Add category pane
+        addCategoryPane.setHgap(10);
+        addCategoryPane.setVgap(10);
+        addCategoryPane.setPadding(new Insets(10, 0, 10, 0));
+        addCategoryPane.add(addCategoryLabel, 0, 0, 2, 1);
+        addCategoryPane.add(categoryNameLabel, 0, 1);
+        addCategoryPane.add(categoryCombo, 1, 1);
+        addCategoryPane.add(amountLabel, 0, 2);
+        addCategoryPane.add(amountField, 1, 2);
+        addCategoryPane.add(addButton, 1, 3);
 
-    private void allStyling() {
-        scrollPane.setFitToHeight(true);
-        scrollPane.setFitToWidth(true);
-        vBox.setSpacing(10);
-        vBox.setPadding(new Insets(10));
+        // Table section
+        VBox tableSection = new VBox(8, tableLabel, table);
+        tableSection.setPadding(new Insets(10, 0, 0, 0));
+        tableSection.setAlignment(Pos.TOP_LEFT);
 
-        totalDisplayBox.setAlignment(Pos.CENTER_RIGHT);
-        totalBar.setSpacing(10);
-        totalBar.setAlignment(Pos.CENTER);
-        totalBar.setPadding(new Insets(5));
-        totalField.setPrefWidth(225);
-        totalField.setPromptText("Enter amount in dollars (e.g. 1000)");
-        totalField.setAlignment(Pos.CENTER);
-        totalButton.setPrefWidth(75);
-
-        categoryBar.setSpacing(10);
-        categoryBar.setPadding(new Insets(10, 0, 10, 0));
-        categoryBar.setAlignment(Pos.CENTER);
-        categoryLabelBox.setAlignment(Pos.CENTER);
-        nameBox.setAlignment(Pos.BOTTOM_CENTER);
-        nameBox.setPrefWidth(160);
-        nameCombo.setPrefWidth(175);
-        nameCombo.setPromptText("Select/add a name");
-
-        amountBox.setAlignment(Pos.BOTTOM_CENTER);
-        amountBox.setPrefWidth(150);
-        amountField.setPrefWidth(110);
-        amountField.setPromptText("Enter amount in dollars");
-
-        buttonBox.setAlignment(Pos.BOTTOM_LEFT);
-
-        tableBox.setAlignment(Pos.CENTER);
-        tableLabelBox.setAlignment(Pos.CENTER);
-        bottomBar.setPadding(new Insets(10, 0, 0, 0));
+        // Bottom bar
+        bottomBar.getChildren().addAll(logoutButton, quitButton); // Add logout button
         bottomBar.setAlignment(Pos.CENTER_RIGHT);
-        quitButton.setPrefWidth(80);
+        bottomBar.setSpacing(10);
+        bottomBar.setPadding(new Insets(10, 0, 0, 0));
 
-        // Fonts
-        Label[] labels = {totalLabel, totalDisplayLabel, categoryLabel, nameLabel, amountLabel, tableLabel, blank};
-        for (Label label : labels) label.setFont(font);
-        Button[] buttons = {totalButton, addButton, quitButton};
-        for (Button button : buttons) button.setFont(font);
+        mainVBox.setPadding(new Insets(25, 40, 25, 40));
+        mainVBox.getChildren().addAll(
+                topBar,
+                separator1,
+                addCategoryPane,
+                separator2,
+                tableSection,
+                bottomBar
+        );
     }
 
-    private void populate() {
-        totalDisplayBox.getChildren().add(totalDisplayLabel);
-        vBox.getChildren().addAll(totalBar, categoryBar, tableBox, bottomBar);
-        totalBar.getChildren().addAll(totalLabel, totalField, totalButton, totalDisplayBox);
-        categoryBar.getChildren().addAll(categoryLabelBox, nameBox, amountBox, buttonBox);
-        tableLabelBox.getChildren().add(tableLabel);
-        tableBox.getChildren().addAll(tableLabelBox, table);
-        bottomBar.getChildren().add(quitButton);
+    private void setupTable() {
+        TableColumn<Budget, String> nameCol = new TableColumn<>("Category");
+        nameCol.setCellValueFactory(new PropertyValueFactory<>("name"));
+        nameCol.setPrefWidth(180);
 
-        categoryLabelBox.getChildren().add(categoryLabel);
-        nameBox.getChildren().addAll(nameLabel, nameCombo);
-        amountBox.getChildren().addAll(amountLabel, amountField);
-        buttonBox.getChildren().addAll(blank, addButton);
-    }
+        TableColumn<Budget, Double> amountCol = new TableColumn<>("Initial Amount (MAD)");
+        amountCol.setCellValueFactory(new PropertyValueFactory<>("amount"));
+        amountCol.setPrefWidth(120);
 
-    private void tableSetup() {
-        TableColumn<Budget, String> nameColumn = new TableColumn<>("Name");
-        nameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
-        nameColumn.setStyle("-fx-alignment: CENTER;");
-        nameColumn.prefWidthProperty().bind(table.widthProperty().multiply(0.435));
-        nameColumn.setResizable(false);
+        TableColumn<Budget, Double> currentCol = new TableColumn<>("Current (MAD)");
+        currentCol.setCellValueFactory(new PropertyValueFactory<>("current"));
+        currentCol.setPrefWidth(120);
 
-        TableColumn<Budget, Double> amountColumn = new TableColumn<>("Amount");
-        amountColumn.setCellValueFactory(new PropertyValueFactory<>("amount"));
-        amountColumn.setStyle("-fx-alignment: CENTER;");
-        amountColumn.prefWidthProperty().bind(table.widthProperty().multiply(0.23));
-        amountColumn.setResizable(false);
-        amountColumn.setCellFactory(column -> new TextFieldTableCell<>(new StringConverter<>() {
-            @Override public String toString(Double value) { return "$" + value; }
-            @Override public Double fromString(String value) { return 0.0; }
-        }));
-
-        TableColumn<Budget, String> percentColumn = new TableColumn<>("% of Total Budget");
-        percentColumn.setCellValueFactory(cellData -> {
-            Budget b = cellData.getValue();
-            double percent = totalBudgetAmount != 0 ? (b.getAmount() / totalBudgetAmount) * 100 : 0;
-            return new SimpleStringProperty(String.format("%.2f%%", percent));
-        });
-        percentColumn.setStyle("-fx-alignment: CENTER;");
-        percentColumn.prefWidthProperty().bind(table.widthProperty().multiply(0.23));
-        percentColumn.setResizable(false);
-
-        TableColumn<Budget, Void> delCol = new TableColumn<>();
-        delCol.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
-        delCol.setStyle("-fx-alignment: CENTER;");
-        delCol.setCellFactory(col -> new TableCell<>() {
-            private final Button delBtn = new Button();
-
+        TableColumn<Budget, Void> removeCol = new TableColumn<>("Remove");
+        removeCol.setCellFactory(col -> new TableCell<>() {
+            private final Button btn = new Button("Delete");
             {
-                ImageView iv = new ImageView(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/delete.png"))));
-                iv.setFitWidth(16); iv.setFitHeight(16);
-                delBtn.setGraphic(iv);
-                delBtn.setOnAction(e -> removeHandler(getTableView().getItems().get(getIndex())));
+                btn.setOnAction(e -> {
+                    Budget b = getTableView().getItems().get(getIndex());
+                    removeHandler(b);
+                });
+                btn.setFont(Font.font(font.getFamily(), 13));
+                btn.setStyle("-fx-background-color: #e57373; -fx-text-fill: white;");
             }
-
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                setGraphic(empty ? null : delBtn);
+                setGraphic(empty ? null : btn);
             }
         });
 
         table.setItems(budgetList);
-        table.getColumns().addAll(nameColumn, amountColumn, percentColumn, delCol);
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        table.setEditable(false);
+        table.getColumns().addAll(nameCol, amountCol, currentCol, removeCol);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
+        table.setPrefHeight(220);
+        table.setMinHeight(150);
+        table.setMaxHeight(300);
+        table.setPlaceholder(new Label("No categories allocated yet."));
+    }
+
+    private void setupHandlers() {
+        addButton.setOnAction(e -> addHandler());
+        quitButton.setOnAction(e -> Platform.exit());
+        logoutButton.setOnAction(e -> handleLogout());
+        totalButton.setOnAction(e -> {
+            try {
+                double newTotal = Double.parseDouble(totalField.getText());
+                totalBudgetAmount = newTotal;
+                dataStorage.getLoggedUser().setTotalLimit(totalBudgetAmount);
+                dataStorage.updateUserTotalLimit(dataStorage.getLoggedUser(), totalBudgetAmount);
+                updateTotalDisplay();
+            } catch (NumberFormatException | SQLException ex) {
+                showAlert("Invalid total budget.");
+            }
+        });
+    }
+
+    private void handleLogout() {
+        dataStorage.setLoggedUser(null);
+        if (primaryStage != null && loginScene != null) {
+            primaryStage.setScene(loginScene);
+        }
+    }
+
+    private void loadCategories() {
+        try {
+            categoryCombo.getItems().clear();
+            categoryCombo.getItems().addAll(dataStorage.getAllCategories());
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadBudgets() {
+        if (dataStorage.getLoggedUser() != null) {
+            budgetList.setAll(dataStorage.getBudgets());
+            dataStorage.getLoggedUser().setBudgets(budgetList);
+            totalBudgetAmount = dataStorage.getLoggedUser().getTotalLimit();
+        }
+    }
+
+    private void updateTotalDisplay() {
+        totalDisplayLabel.setText("Available Budget: " + String.format("%.2f", totalBudgetAmount) + " MAD");
+    }
+
+    private void addHandler() {
+        String name = categoryCombo.getValue();
+        if (name == null || name.isEmpty()) {
+            showAlert("Please select a category.");
+            return;
+        }
+        try {
+            double amount = Double.parseDouble(amountField.getText());
+            if (amount <= 0) {
+                showAlert("Amount must be positive.");
+                return;
+            }
+            if (amount > totalBudgetAmount) {
+                showAlert("Not enough total budget available.");
+                return;
+            }
+            Budget newBudget = new Budget(name, amount);
+            budgetList.add(newBudget);
+            dataStorage.addBudget(dataStorage.getLoggedUser(), newBudget);
+
+            // Subtract the allocated amount from the total budget
+            totalBudgetAmount -= amount;
+            dataStorage.getLoggedUser().setTotalLimit(totalBudgetAmount);
+            dataStorage.updateUserTotalLimit(dataStorage.getLoggedUser(), totalBudgetAmount);
+
+            amountField.clear();
+            updateTotalDisplay();
+            table.refresh();
+
+            // Refresh TransactionInput's category ComboBox if reference is set
+            if (transactionInput != null) {
+                transactionInput.refreshCategoryComboBox();
+            }
+        } catch (NumberFormatException e) {
+            showAlert("Invalid amount entered.");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     private void removeHandler(Budget toRemove) {
         budgetList.remove(toRemove);
         dataStorage.removeBudget(toRemove.getName());
-        refreshTable();
-    }
 
-    private void refreshTable() {
-        table.refresh();
-    }
-
-    private void addHandler() {
-        String name = nameCombo.getValue();
-        if (name == null || name.isEmpty()) return;
-
+        // Add the deallocated amount back to the total budget
+        totalBudgetAmount += toRemove.getCurrent();
+        dataStorage.getLoggedUser().setTotalLimit(totalBudgetAmount);
         try {
-            double amount = Double.parseDouble(amountField.getText());
-            Budget newBudget = new Budget(name, amount);
-            budgetList.add(newBudget);
-            dataStorage.addBudget(dataStorage.getLoggedUser(), newBudget);
-            nameCombo.setValue(null);
-            amountField.clear();
-            refreshTable();
-        } catch (NumberFormatException e) {
-            System.out.println("Invalid amount entered.");
+            dataStorage.updateUserTotalLimit(dataStorage.getLoggedUser(), totalBudgetAmount);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        updateTotalDisplay();
+        table.refresh();
+
+        // Refresh TransactionInput's category ComboBox if reference is set
+        if (transactionInput != null) {
+            transactionInput.refreshCategoryComboBox();
         }
     }
 
-    private void setHandlers() {
-        addButton.setOnAction(e -> addHandler());
-        totalButton.setOnAction(e -> {
-            try {
-                totalBudgetAmount = Double.parseDouble(totalField.getText());
-                dataStorage.getLoggedUser().setTotalLimit(totalBudgetAmount);
-                dataStorage.updateUserTotalLimit(dataStorage.getLoggedUser(),totalBudgetAmount);
-                System.out.println("HI"+totalBudgetAmount);
-                initializeBudgetTotalList();
-                refreshTable();
-            } catch (NumberFormatException ex) {
-                System.out.println("Invalid total budget.");
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
-
-        quitButton.setOnAction(e -> Platform.exit());
+    public void refreshBudgets() {
+        loadBudgets();      // reloads the budgets from DataStorage
+        table.refresh();    // refreshes the TableView display
+        updateTotalDisplay();
     }
 
-    private void createToolTips() {
-        totalField.setTooltip(new Tooltip("Set the total budget for the month"));
-        nameCombo.setTooltip(new Tooltip("Choose a category"));
-        amountField.setTooltip(new Tooltip("Amount to allocate to this category"));
-        addButton.setTooltip(new Tooltip("Add category to budget"));
+    private void showAlert(String msg) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);
+        alert.showAndWait();
     }
 
-
-
-
+    // Setter to inject TransactionInput reference after construction if needed
+    public void setTransactionInput(TransactionInput transactionInput) {
+        this.transactionInput = transactionInput;
+    }
 }
-
-

@@ -1,6 +1,5 @@
 package com.MoneyMind.projet_javafx.controllers;
 
-import com.MoneyMind.projet_javafx.controllers.DataStorage;
 import com.MoneyMind.projet_javafx.db.UserDAO;
 import javafx.geometry.*;
 import javafx.scene.*;
@@ -29,7 +28,6 @@ public class LoginScene extends Styling {
         scene = createLoginScene();
     }
 
-
     public Scene createLoginScene() {
 
         errorText = new Text();
@@ -55,9 +53,6 @@ public class LoginScene extends Styling {
         title.setTextOrigin(VPos.TOP);
         title.setTextAlignment(TextAlignment.CENTER);
 
-
-        // The StackPane is used to layer items after each other
-
         GridPane gridPane = new GridPane();
         gridPane.add(rectLarge(), 0, 0);
         gridPane.add(title, 0, 1);
@@ -68,8 +63,6 @@ public class LoginScene extends Styling {
 
         headerStackPane.getChildren().clear();
         headerStackPane.getChildren().addAll(gridPane);
-
-
 
         // elements for the Center Region of mainBorderPane
         Label userLabel = new Label("Username: ");
@@ -88,13 +81,11 @@ public class LoginScene extends Styling {
         userLabel.setFont(bodyFont);
         passLabel.setFont(bodyFont);
 
-
         username.setFont(bodyFont);
         password.setFont(bodyFont);
 
         username.setPrefHeight(40);
         password.setPrefHeight(40);
-
 
         password.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
@@ -112,8 +103,8 @@ public class LoginScene extends Styling {
         errorTextContainer.setAlignment(Pos.CENTER);
         errorTextContainer.getChildren().add(errorText);
 
-        errorTextContainer.setPadding(new Insets(5, 0, 5, 0)); // Adjust the padding as needed
-        errorTextContainer.setSpacing(5); // Adjust the spacing as needed
+        errorTextContainer.setPadding(new Insets(5, 0, 5, 0));
+        errorTextContainer.setSpacing(5);
 
         // Set ActionEvent on the LogIn Button and register now text
         loginButton.setOnAction(event ->
@@ -122,7 +113,6 @@ public class LoginScene extends Styling {
 
         // For register now text
         registerNow.setFont(smallFont);
-        //maple red from color picker
         registerNow.setFill(Color.rgb(225, 0, 40));
 
         // For hovering the cursor on the elements
@@ -131,21 +121,18 @@ public class LoginScene extends Styling {
         loginButton.setCursor(Cursor.HAND);
         registerNow.setCursor(Cursor.HAND);
 
-// For the overall Log In Form (including the small text and the Login button in loginForm2 layout pane)
+        // For the overall Log In Form (including the small text and the Login button in loginForm2 layout pane)
         loginForm.setSpacing(5.0);
         loginForm.setPadding(padding);
         loginForm.setStyle("-fx-margin-left: 20px;");
-
 
         loginForm2.setSpacing(10.0);
         loginForm2.setAlignment(Pos.BOTTOM_CENTER);
         loginForm2.getChildren().addAll(registerNow, loginButton);
 
-// Add errorText and other elements to loginForm
+        // Add errorText and other elements to loginForm
         loginForm.getChildren().addAll(errorTextContainer, userLabel, username, passLabel, password, loginForm2);
-        loginButton.setOnAction(event -> loginButtonEvent(username.getText(), password.getText()));
 
-        // Set up the 4 regions of border pane
         // Set up the 4 regions of border pane
         mainBorderPane.setTop(headerStackPane);
         mainBorderPane.setCenter(loginForm);
@@ -163,8 +150,9 @@ public class LoginScene extends Styling {
         User user = UserDAO.getUserByCredentials(username, password);
 
         if (user != null) {
-           dataStorage.setLoggedUser(user); // Tu peux stocker l’objet User complet
-            MainWindow mainWindow = new MainWindow(dataStorage);
+            dataStorage.setLoggedUser(user);
+            // Pass primaryStage and loginScene to MainWindow
+            MainWindow mainWindow = new MainWindow(dataStorage, primaryStage, this.getScene());
             errorText.setText(" ");
             Scene mainWindowScene = mainWindow.createScene();
             primaryStage.setScene(mainWindowScene);
@@ -174,8 +162,6 @@ public class LoginScene extends Styling {
             return null;
         }
     }
-
-
 
     public Scene getScene() {
         return scene;
