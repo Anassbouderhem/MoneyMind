@@ -16,11 +16,11 @@ public class MainWindow {
 
     TabPane tp = new TabPane();
     private BudgetInputTab budgetInputTab;
+    private TransactionInput transactionInputTab;
     private DataStorage dataStorage;
     private Stage primaryStage;
     private Scene loginScene;
 
-    // Update constructor
     public MainWindow(DataStorage dataStorage, Stage primaryStage, Scene loginScene) {
         this.dataStorage = dataStorage;
         this.primaryStage = primaryStage;
@@ -31,13 +31,19 @@ public class MainWindow {
         final int WIDTH = 750;
         final int HEIGHT = 450;
 
-        // Pass primaryStage and loginScene to BudgetInputTab
-        BudgetInputTab budgetInputTab = new BudgetInputTab(dataStorage, primaryStage, loginScene);
-        BudgetView budgetViewTab = new BudgetView(dataStorage);
-        TransactionInput transactionInputTab = new TransactionInput(dataStorage, budgetInputTab);
-        TransactionView transactionViewTab = new TransactionView(dataStorage);
+        // 1. Create TransactionInput first (with null for budgetInputTab for now)
+        transactionInputTab = new TransactionInput(dataStorage, null);
 
-        tp.getTabs().addAll(budgetInputTab, budgetViewTab, transactionInputTab, transactionViewTab);
+        // 2. Create BudgetInputTab and pass the TransactionInput reference
+        budgetInputTab = new BudgetInputTab(dataStorage, primaryStage, loginScene, transactionInputTab);
+
+        // 3. Now set the BudgetInputTab reference in TransactionInput (if you need two-way communication)
+        transactionInputTab.setBudgetInputTab(budgetInputTab);
+
+        BudgetView budgetViewTab = new BudgetView(dataStorage);
+        TransactionView transactionViewTab = new TransactionView(dataStorage);
+        TransferMoneyTab transferMoneyTab = new TransferMoneyTab(dataStorage);
+        tp.getTabs().addAll(budgetInputTab, budgetViewTab, transactionInputTab, transactionViewTab, transferMoneyTab);
         tp.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
         Scene scene = new Scene(tp, WIDTH, HEIGHT, Color.LIGHTBLUE);

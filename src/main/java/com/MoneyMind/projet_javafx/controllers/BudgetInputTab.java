@@ -13,6 +13,8 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 
 import java.sql.SQLException;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class BudgetInputTab extends Tab {
 
@@ -46,7 +48,7 @@ public class BudgetInputTab extends Tab {
 
     private final HBox bottomBar = new HBox();
     private final Button quitButton = new Button("Quit");
-    private final Button logoutButton = new Button("Logout"); // New logout button
+    private final Button logoutButton = new Button("Logout");
 
     private DataStorage dataStorage;
     private double totalBudgetAmount = 0.0;
@@ -103,7 +105,7 @@ public class BudgetInputTab extends Tab {
         totalInputBox.setAlignment(Pos.CENTER_LEFT);
         totalBox.getChildren().addAll(totalLabel, totalInputBox, totalDisplayLabel);
         totalBox.setAlignment(Pos.CENTER_LEFT);
-
+        categoryCombo.setEditable(true);
         topBar.getChildren().addAll(totalBox);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
@@ -124,7 +126,7 @@ public class BudgetInputTab extends Tab {
         tableSection.setAlignment(Pos.TOP_LEFT);
 
         // Bottom bar
-        bottomBar.getChildren().addAll(logoutButton, quitButton); // Add logout button
+        bottomBar.getChildren().addAll(logoutButton, quitButton);
         bottomBar.setAlignment(Pos.CENTER_RIGHT);
         bottomBar.setSpacing(10);
         bottomBar.setPadding(new Insets(10, 0, 0, 0));
@@ -226,9 +228,9 @@ public class BudgetInputTab extends Tab {
     }
 
     private void addHandler() {
-        String name = categoryCombo.getValue();
-        if (name == null || name.isEmpty()) {
-            showAlert("Please select a category.");
+        String baseName = categoryCombo.getEditor().getText().trim();
+        if (baseName.isEmpty()) {
+            showAlert("Please enter a category.");
             return;
         }
         try {
@@ -241,6 +243,25 @@ public class BudgetInputTab extends Tab {
                 showAlert("Not enough total budget available.");
                 return;
             }
+
+            // Auto-increment name if duplicate in budget list
+            String candidateName = baseName;
+            int suffix = 2;
+            Set<String> existingNames = budgetList.stream()
+                    .map(Budget::getName)
+                    .collect(Collectors.toSet());
+            while (existingNames.contains(candidateName)) {
+                candidateName = baseName + "-" + suffix;
+                suffix++;
+            }
+            String name = candidateName;
+
+            // Ensure the final category name exists in the DB and ComboBox
+            if (!categoryCombo.getItems().contains(name)) {
+                dataStorage.addCategory(name, "EXPENSE"); // Or let user choose type
+                categoryCombo.getItems().add(name);
+            }
+
             Budget newBudget = new Budget(name, amount);
             budgetList.add(newBudget);
             dataStorage.addBudget(dataStorage.getLoggedUser(), newBudget);
@@ -261,10 +282,9 @@ public class BudgetInputTab extends Tab {
         } catch (NumberFormatException e) {
             showAlert("Invalid amount entered.");
         } catch (SQLException e) {
-            e.printStackTrace();
+            showAlert("Failed to add new category: " + e.getMessage());
         }
     }
-
     private void removeHandler(Budget toRemove) {
         budgetList.remove(toRemove);
         dataStorage.removeBudget(toRemove.getName());

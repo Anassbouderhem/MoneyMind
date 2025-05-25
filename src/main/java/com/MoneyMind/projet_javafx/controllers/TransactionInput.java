@@ -589,5 +589,8 @@ public class TransactionInput extends Tab {
         filterCategoryCombo.getItems().addAll(budgetedCategories);
         filterCategoryCombo.setValue("All");
     }
+    public void setBudgetInputTab(BudgetInputTab budgetInputTab) {
+        this.budgetInputTab = budgetInputTab;
+    }
     public static void main(String[] args) { }
 }

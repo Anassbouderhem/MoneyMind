@@ -158,7 +158,15 @@ public class DataStorage {
     private void loadUserData() throws SQLException {
         // Implementation omitted for brevity
     }
-
+    public void addCategory(String name, String type) throws SQLException {
+        String sql = "INSERT INTO categories (name, type) VALUES (?, ?)";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, name);
+            pstmt.setString(2, type);
+            pstmt.executeUpdate();
+            connection.commit();
+        }
+    }
     private int getCategoryId(String categoryName) throws SQLException {
         String sql = "SELECT category_id FROM categories WHERE name = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
@@ -216,7 +224,111 @@ public class DataStorage {
             return new ArrayList<>();
         }
     }
+// In DataStorage.java
 
+    public boolean transferMoney(String fromUsername, String toUsername, double amount) throws SQLException {
+        if (amount <= 0) throw new IllegalArgumentException("Amount must be positive");
+
+        // Get both users
+        User fromUser = null, toUser = null;
+        String sql = "SELECT user_id, username, password, total_limit FROM users WHERE username = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, fromUsername);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                fromUser = new User(rs.getInt("user_id"), rs.getString("username"), rs.getString("password"), rs.getDouble("total_limit"));
+            }
+        }
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, toUsername);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                toUser = new User(rs.getInt("user_id"), rs.getString("username"), rs.getString("password"), rs.getDouble("total_limit"));
+            }
+        }
+
+        if (fromUser == null || toUser == null) throw new SQLException("User not found");
+
+        // Check balance
+        if (fromUser.getTotalLimit() < amount) throw new SQLException("Insufficient funds");
+
+        // Update balances
+        String updateSql = "UPDATE users SET total_limit = ? WHERE user_id = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(updateSql)) {
+            // Deduct from sender
+            pstmt.setDouble(1, fromUser.getTotalLimit() - amount);
+            pstmt.setInt(2, fromUser.getId());
+            pstmt.executeUpdate();
+
+            // Add to receiver
+            pstmt.setDouble(1, toUser.getTotalLimit() + amount);
+            pstmt.setInt(2, toUser.getId());
+            pstmt.executeUpdate();
+        }
+
+        // Get or create the "Transfer" category
+        int transferCategoryId = getOrCreateTransferCategoryId();
+
+        // Add a transaction record for both users
+        String insertSql = "INSERT INTO transactions (user_id, name, amount, category_id, date, type) VALUES (?, ?, ?, ?, ?, ?)";
+        String now = java.time.LocalDate.now().toString();
+        try (PreparedStatement pstmt = connection.prepareStatement(insertSql)) {
+            // Sender (expense)
+            pstmt.setInt(1, fromUser.getId());
+            pstmt.setString(2, "Transfer to " + toUsername);
+            pstmt.setDouble(3, -amount);
+            pstmt.setInt(4, transferCategoryId);
+            pstmt.setString(5, now);
+            pstmt.setString(6, "EXPENSE");
+            pstmt.executeUpdate();
+
+            // Receiver (income)
+            pstmt.setInt(1, toUser.getId());
+            pstmt.setString(2, "Transfer from " + fromUsername);
+            pstmt.setDouble(3, amount);
+            pstmt.setInt(4, transferCategoryId);
+            pstmt.setString(5, now);
+            pstmt.setString(6, "INCOME");
+            pstmt.executeUpdate();
+        }
+
+        connection.commit();
+        return true;
+    }
+
+    // Helper method to get or create the "Transfer" category
+    public int getOrCreateTransferCategoryId() throws SQLException {
+        String name = "Transfer";
+        String type = "INCOME"; // or "EXPENSE", as you wish
+
+        // Try to get the category id
+        String sql = "SELECT category_id FROM categories WHERE name = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, name);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("category_id");
+            }
+        }
+
+        // If not found, insert it
+        sql = "INSERT INTO categories (name, type) VALUES (?, ?)";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, name);
+            pstmt.setString(2, type);
+            pstmt.executeUpdate();
+        }
+
+        // Now fetch the new id
+        try (PreparedStatement pstmt = connection.prepareStatement("SELECT category_id FROM categories WHERE name = ?")) {
+            pstmt.setString(1, name);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("category_id");
+            }
+        }
+        throw new SQLException("Failed to create or retrieve Transfer category");
+    }
     public void removeBudget(String name) {
         String sql = "DELETE FROM budgets WHERE user_id = ? AND name = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
