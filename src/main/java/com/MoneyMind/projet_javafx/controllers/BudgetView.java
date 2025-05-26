@@ -115,7 +115,7 @@ public class BudgetView extends Tab {
 
         // set y axis
         double tickUnit = totalBudget * 0.1; // make each tick in the chart occur every 10% of the upper bound
-        NumberAxis yAxis = new NumberAxis("$", 0, totalBudget, tickUnit);
+        NumberAxis yAxis = new NumberAxis("DH", 0, totalBudget, tickUnit);
 
         StackedBarChart<String, Number> stackedBarChart = new StackedBarChart<>(xAxis, yAxis);
         stackedBarChart.setTitle("Budget Usage by Category");

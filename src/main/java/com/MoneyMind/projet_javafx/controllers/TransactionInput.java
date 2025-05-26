@@ -99,7 +99,7 @@ public class TransactionInput extends Tab {
         for (Transaction t : table.getItems()) {
             totalCost += t.getAmount();
         }
-        String str = String.format("$ %.2f", totalCost);
+        String str = String.format(" %.2f DH", totalCost);
         totalField.setText(str);
     }
 
@@ -194,7 +194,7 @@ public class TransactionInput extends Tab {
         amountCol.setCellFactory(column -> new TextFieldTableCell<Transaction, Double>(new StringConverter<Double>() {
             @Override
             public String toString(Double value) {
-                return "$" + value;
+                return  value + " DH";
             }
             @Override
             public Double fromString(String value) {
@@ -318,10 +318,10 @@ public class TransactionInput extends Tab {
         nameField.setMaxWidth(125);
         nameField.setPrefWidth(125);
         amountField.setMaxWidth(100);
-        amountField.setPromptText("$");
+        amountField.setPromptText("DH");
         dateField.setMaxWidth(100);
         purchaseButton.setPrefWidth(60);
-        totalField.setPromptText("$");
+        totalField.setPromptText("DH");
         totalField.setEditable(false);
         totalField.setMaxWidth(75);
         quitButton.setPrefWidth(75);
