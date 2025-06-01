@@ -1,0 +1,20 @@
+package rules
+
+import com.MoneyMind.projet_javafx.controllers.Transaction;
+
+global java.lang.StringBuilder advice;
+
+rule "Dépense très élevée"
+when
+    $t : Transaction(amount < -1000)
+then
+    advice.append("Grosse dépense détectée : ").append($t.getName())
+          .append(" (").append(Math.abs($t.getAmount())).append(" DH)\n");
+end
+
+rule "Catégorie fréquente"
+when
+    $t : Transaction(category == "Alimentation")
+then
+    advice.append("Vous dépensez souvent en Alimentation. Pensez à fixer un budget !\n");
+end

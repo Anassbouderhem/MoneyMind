@@ -9,7 +9,8 @@ module com.MoneyMind.projet_javafx {
     requires com.almasb.fxgl.all;
     requires com.opencsv;
     requires java.sql;
-
+    requires okhttp3;
+    requires org.json;
     // Packages ouverts au chargement FXML (réflexion)
     opens com.MoneyMind.projet_javafx.controllers to javafx.fxml;
 

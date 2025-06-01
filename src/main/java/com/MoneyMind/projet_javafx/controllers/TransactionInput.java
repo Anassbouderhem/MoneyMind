@@ -17,6 +17,7 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.util.StringConverter;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
@@ -560,6 +561,8 @@ public class TransactionInput extends Tab {
                 adviceArea.setText(advice);
             } catch (SQLException ex) {
                 adviceArea.setText("Erreur lors de la génération des conseils: " + ex.getMessage());
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
             }
         });
         outerGrid.add(aiBox, 0, 2);
