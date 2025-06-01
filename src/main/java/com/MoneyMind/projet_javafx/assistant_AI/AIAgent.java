@@ -7,7 +7,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 
 public class AIAgent {
-    private static final String API_KEY = "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";
+    private static final String API_KEY = "clé";
     private static final String API_URL = "https://api.openai.com/v1/chat/completions";
     private final OkHttpClient client = new OkHttpClient();
 
